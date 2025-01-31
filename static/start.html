@@ -1,0 +1,16 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+   <head>
+      <title>Viewer</title>
+      <link rel="stylesheet" href="/static/main.css">
+   </head>
+   <body id="content">
+     <p>Waiting...
+   </body>
+</html>
+<script>
+  var eventSource = new EventSource("/viewer");
+  eventSource.addEventListener("message", event => {
+    document.getElementById("content").innerHTML = event.data;
+  });
+</script>

@@ -1,0 +1,24 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<HTML>
+   <HEAD>
+      <TITLE>Viewer</TITLE>
+   </HEAD>
+   <BODY id="myBody">
+     <P>Hello World!  Waiting...
+   </BODY>
+</HTML>
+<SCRIPT>
+ function run() {
+   console.log("run called");
+   let xhr = new XMLHttpRequest();
+   xhr.open("GET", '/viewer', true);
+   xhr.onreadystatechange = function () {
+     console.log("onreadystatechange function called");
+     if (this.readyState == 4 && this.status == 200) {
+       alert(this.responseText);
+     }
+   }
+   console.log("run done");
+ }
+ run();
+</SCRIPT>

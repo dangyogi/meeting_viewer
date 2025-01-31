@@ -1,0 +1,12 @@
+# .gitignore
+
+.history
+
+# pyenv
+.python-version
+.pyhist
+
+# vim files
+.*.swp
+
+
