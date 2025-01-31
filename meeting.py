@@ -204,6 +204,8 @@ async def viewer(request: web.Request) -> web.StreamResponse:
 # Get the show on the road!
 
 print("__file__", __file__)
+Source_dir = os.path.dirname(__file__)
+print("Source_dir", Source_dir)
 
 app = web.Application()
 app.add_routes([
@@ -213,7 +215,8 @@ app.add_routes([
 ])
 
 parser = argparse.ArgumentParser(description="web server to share words in meetings")
-parser.add_argument('watch_dir', default='testmeeting', help='shares all changes in this directory')
+parser.add_argument('watch_dir', nargs='?', default='testmeeting',
+                    help='shares all changes in this directory')
 args = parser.parse_args()
 
 Watch_dir = args.watch_dir

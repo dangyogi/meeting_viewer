@@ -1,0 +1,21 @@
+# get_qr_codes
+
+
+ip=$(ifconfig | sed -n '/wlan0/{
+n
+/^.* inet  */s///
+/ .*$/s///
+p
+}
+')
+
+echo ip is $ip
+
+# meeting
+qrencode -s 10 -o static/meeting_qr.png http://$ip:8080
+
+# RPOF-CMC
+qrencode -s 10 -o static/RPOF_CMC_qr.png http://$ip/RPOF-CMC
+
+# RPOF-ROP
+qrencode -s 10 -o static/RPOF_ROP_qr.png http://$ip/RPOF-ROP
