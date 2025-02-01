@@ -1,19 +1,22 @@
 #!/bin/sh
 
-#sed -e 's/~~\(~\{0,1\}[^~]\)*~~//g' -e 's/\^\^\(\(\^\{0,1\}[^\^]\)*\)\^\^/\1/g' $1
+# Converts input file, passing the primary amendment.
 
-sed -e '/^------/,$d' $1 |
+if [ $# -eq 0 ]; then
+    INPUT=-
+else
+    INPUT="$1"
+fi
+
+sed -e '/^------/,$d' "$INPUT" |
 sed '
 :next
 N
 s/\n/#%#/g
-T done
-b next
-:done
+t next
 ' |
 sed '
 s/~~\(~\{0,1\}[^~]\)*~~//g
 s/\^\^\(\(\^\{0,1\}[^\^]\)*\)\^\^/\1/g
 s/#%#/\n/g
 '
-

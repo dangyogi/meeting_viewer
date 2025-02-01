@@ -1,0 +1,5 @@
+# activate
+
+. ../meeting.venv/bin/activate
+
+PATH=$PATH:$(pwd)/bin

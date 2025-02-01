@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# Converts input file, passing the secondary amendment.
+
+if [ $# -eq 0 ]; then
+    INPUT=-
+else
+    INPUT="$1"
+fi
+
+sed '
+:first-section
+  /^-----/b second-section
+  n
+  b first-section
+
+:second-section
+n
+N
+:next
+/-------$/b finish
+N
+s/\n/#%#/g
+t next
+
+:finish
+s/~~\(~\{0,1\}[^~]\)*~~//g
+s/\^\^\(\(\^\{0,1\}[^\^]\)*\)\^\^/\1/g
+s/#%#-----*$//
+s/#%#/\n/g
+q # skip remainder of file
+' "$INPUT"
