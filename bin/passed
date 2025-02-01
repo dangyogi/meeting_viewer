@@ -23,7 +23,7 @@ if [ $# -ne 1 ]; then
 fi
 
 input="$1"
-output=$(echo "$input" | sed 's/\(.*\)-\([0-9]*\)$/\1.\2/')
+output=$(echo "$input" | sed 's/\(.*\)-\([0-9.]*\)$/\1.\2/')
 
 if [ -e "$output" ]; then
    echo passed: ERROR: output file, $output, already exists
