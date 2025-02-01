@@ -47,12 +47,12 @@ class MultiQueue:
 
     def register(self, key):
         assert key not in self.registered_keys
-        print("MultiQueue.register", key)
         self.registered_keys.add(key)
+        print("MultiQueue.register", key, "gives", self.registered_keys)
 
     def unregister(self, key):
-        print("MultiQueue.unregister", key)
         self.registered_keys.remove(key)
+        print("MultiQueue.unregister", key, "leaves", self.registered_keys)
         if key in self.started_keys:
             self.started_keys.remove(key)
 
@@ -93,6 +93,7 @@ class MultiQueue:
 def convert(filename):
     r'''Convert the markdown contents of filename to html and return it.
     '''
+    print("converting", filename, "from markdown to html")
     new_path = os.path.join(Watch_dir, filename)
     with open(new_path, 'rt') as file:
         return md.convert(file.read())
@@ -112,13 +113,15 @@ async def watcher(app):
         while True:
             event = await watcher.get_event()
             if event.name[0] != '.' and not event.name.isdigit():
-                print("watcher got", event.name)
                 if not app['multi_queue'].empty():
+                    print("watcher got", event.name, "with registered clients")
                     new_filename = event.name
                     new_contents = convert(new_filename)
                     print("watcher", event.name, "pushing contents")
                     await app['multi_queue'].push(new_filename, new_contents)
                     print("watcher", event.name, "push done")
+                else:
+                    print("watcher got", event.name, "no registered clients")
     finally:
         print("watcher done")
         watcher.close()
@@ -155,10 +158,8 @@ async def static(request):
 
     Just sends the file in the source code's static directory.
     '''
-    print("static called")
     path = os.path.join('static', request.match_info['filename'])
-    print("static called with request.path", request.path, "filename", request.match_info['filename'],
-          "path", path)
+    print("static called with filename", request.match_info['filename'], "path", path)
     return web.FileResponse(path=path)
 
 Viewer_num = 1
@@ -172,15 +173,15 @@ async def viewer(request: web.Request) -> web.StreamResponse:
     client_ip = request.remote
     viewer_num = Viewer_num
     Viewer_num += 1
-    print("viewer called from", client_ip, "viewer_num", viewer_num)
+    print("viewer", viewer_num, "called from", client_ip)
     async with sse_response(request) as resp:
         pick_file = None
         pick_time = time.time() - 3600
-        print("pick_time", pick_time)
+        #print("pick_time", pick_time)
         for path in Path(Watch_dir).iterdir():
             if path.is_file() and path.name[0] != '.' and not path.name.isdigit():
                 mtime = path.stat().st_mtime
-                print(path, "st_mtime", mtime, "delta", time.time() - mtime)
+                #print(path, "st_mtime", mtime, "delta", time.time() - mtime)
                 if mtime >= pick_time:
                     pick_file = path.name
                     pick_time = mtime
@@ -192,12 +193,12 @@ async def viewer(request: web.Request) -> web.StreamResponse:
                 if contents is None:
                     contents = await app['multi_queue'].pop(viewer_num)
                 if resp.is_connected():
-                    print("viewer got contents, len", len(contents))
+                    print("viewer", viewer_num, "got contents", contents[:contents.find('\n')], "...")
                     await resp.send(contents)
                     contents = None
         finally:
             app['multi_queue'].unregister(viewer_num)
-    print("viewer done")
+    print("viewer", viewer_num, "done")
     return resp  # ??
 
 
