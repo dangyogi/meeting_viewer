@@ -83,38 +83,51 @@ def cur_agenda():
             yield history[-1]
 
 def current(motion=None):
+    r'''Displays or sets current motion.
+    '''
     if motion is None:
         print(str(get_current(False)))
     else:
         meta('current').write_text(motion + '\n')
 
 def passed():
+    r'''Shows the list of main motions that have passed a vote.
+
+    Amendments that have passed are not shown.
+    '''
     with meta('passed').open() as f:
         print(f.read(), end='')
 
 def failed():
+    r'''Shows the list of all motions that have failed a vote.
+
+    This includes amendments.
+    '''
     with meta('failed').open() as f:
         print(f.read(), end='')
 
-def start(_no_edit, motion):
+def start(_no_edit, motion=None):
+    r'''touches motion and execs editor on it.
+
+    If motion is omitted, the current motion is restarted.
+    '''
     print("start", _no_edit, motion)
-    motion_path = Path(motion)
-    meta('current').write_text(str(motion).rstrip('\n') + '\n')
+    if motion is None:
+        motion_path = get_current()
+        print("restarting", str(motion_path))
+    else:
+        motion_path = Path(motion)
+        meta('current').write_text(str(motion).rstrip('\n') + '\n')
     motion_path.touch()
     if not _no_edit:
         editor = Path(os.environ['EDITOR'])
         os.execl(editor, editor.name, motion_path)
 
-def restart(_no_edit):
-    cur = get_current()
-    print("restart", repr(str(cur)))
-    start(_no_edit, cur)
-
-def next(_no_edit):
+def next(_no_edit, _dry_run):
     for motion in cur_agenda():
-        current = meta('current')
-        if current.exists():
-            current.unlink()
+        print("next is", str(motion))
+        if _dry_run:
+            return
         start(_no_edit, motion)
     print("agenda done")
 
@@ -140,20 +153,20 @@ def sections(motion):
     return section_re.split(data)
 
 #s/~~\(~\{0,1\}[^~]\)*~~//g
-del_re = re.compile(r'~~(?:~?[^~]+)*~~')
+#del_re = re.compile(r'~~(?:~?[^~]+)*~~')
+del_re = re.compile(r'~~.*?~~', re.DOTALL)
 
 #s/\^\^\(\(\^\{0,1\}[^\^]\)*\)\^\^/\1/g
-ins_re = re.compile(r'\^\^(\^?[^\^]+)*\^\^')
+#ins_re = re.compile(r'\^\^(\^?[^\^]+)*\^\^')
+ins_re = re.compile(r'\+\+(.*?)\+\+', re.DOTALL)
 
 def pass_block(text):
     print("pass_block", text)
-    parts = del_re.split(text)
-    print("del parts", parts)
-    no_del = ''.join(parts)
+    no_del = del_re.sub('', text)
     print("no_del", no_del)
-    parts = ins_re.split(no_del)
-    print("ins parts", parts)
-    ans = ''.join(parts)
+    ans = ins_re.sub(r'\1', no_del)
+    #print("ins parts", parts)
+    #ans = ''.join(parts)
     print("ans", ans)
     return ans
 
@@ -253,39 +266,86 @@ def new(_no_edit, _dry_run):
     if not _dry_run:
         start(_no_edit, new_file)
 
+def commands():
+    def get_args(fn):
+        ans = []
+        for arg, kind in getargs(fn):
+            if kind == 'option':
+                ans.append(f" [{arg[1:3]}|{arg}]")
+            elif kind == 'required':
+                ans.append(' ' + arg)
+            else:
+                ans.append(f" [{arg}]")
+        return ''.join(ans)
+    for name, fn in sorted(Commands.items()):
+        print(f"{name}{get_args(fn)}")
+        doc = inspect.getdoc(fn)
+        if doc is not None:
+            for line in doc.rstrip('\n ').split('\n'):
+                print('    ', line, sep='')
+        print()
+
+Commands = {
+    "current": current,
+    "passed": passed,
+    "failed": failed,
+    "start": start,
+    "next": next,
+    "pass": pass_,
+    "fail": fail,
+    "amend": amend,
+    "new": new,
+    "commands": commands,
+}
+
+def getargs(fn):
+    r'''Yields arg, kind.
+
+    Where kind is 'option', 'required', or a default value
+
+    If arg starts with '_', all '_' have been replaced with '-', leaving the initial '-'.
+    '''
+    argspec = inspect.getfullargspec(fn)
+    fn_args = argspec.args
+    fn_defaults = argspec.defaults or ()
+    num_no_defaults = len(fn_args) - len(fn_defaults)
+    arg_translate = {}
+    for arg in fn_args[: num_no_defaults]:
+        if arg[0] == '_':
+            yield '-' + arg.replace('_', '-'), 'option'
+        else:
+            yield arg, 'required'
+    for arg, default in zip(fn_args[num_no_defaults:], fn_defaults):
+        yield arg, default
 
 if __name__ == "__main__":
     import argparse
     import inspect
 
-    parser = argparse.ArgumentParser()
-
     name = Path(sys.argv[0]).name
-    if name in ('pass',):
-        name = name + '_'
-
-    fn = globals()[name]
-    argspec = inspect.getfullargspec(fn)
-    fn_args = argspec.args
-    fn_defaults = argspec.defaults or ()
-    #print("fn_args", fn_args, "fn_defaults", fn_defaults)
-    num_no_defaults = len(fn_args) - len(fn_defaults)
+    fn = Commands[name]
+    doc = inspect.getdoc(fn)
+    if doc is None:
+        parser = argparse.ArgumentParser()
+    else:
+        parser = argparse.ArgumentParser(description=doc.rstrip('\n '))
     arg_translate = {}
-    for arg in fn_args[: num_no_defaults]:
-        #print("adding arg", arg)
-        if arg[0] == '_':
-            parser.add_argument(arg.replace('_', '-'), '-' + arg[1],
-                                default=False, action='store_true')
-            arg_translate[arg[1:]] = arg
-        else:
+    for arg, kind in getargs(fn):
+        if kind == 'option':
+            #parser.add_argument(arg, arg[1:3], default=False, action='store_true')
+            parser.add_argument(arg[1:3], arg, default=False, action='store_true')
+            arg = arg.replace('-', '_')
+            arg_translate[arg[2:]] = arg[1:]
+        elif kind == 'required':
             parser.add_argument(arg)
-    for arg, default in zip(fn_args[num_no_defaults:], fn_defaults):
-        #print("adding arg", arg, "default", default)
-        parser.add_argument(arg, nargs='?', default=default)
+        else:
+            parser.add_argument(arg, nargs='?', default=kind)
 
     args = parser.parse_args()
     #print("args", args)
 
+    #print("vars(args)", vars(args))
+    #print("arg_translate", arg_translate)
     arg_dict = {arg_translate.get(name, name): value for name, value in vars(args).items()}
     #print("arg_dict", arg_dict)
     fn(**arg_dict)

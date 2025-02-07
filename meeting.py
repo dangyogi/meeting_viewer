@@ -12,22 +12,31 @@ from aiohttp_sse import sse_response
 import markdown
 
 
-# Markdown extensions for ~~deleted text~~ and ^^inserted text^^, these translate to <del> and <ins>
-# html tags, respectively.
+## Markdown extensions for ~~deleted text~~ and ^^inserted text^^, these translate to <del> and <ins>
+## html tags, respectively.
+#
+#class DelExtension(markdown.extensions.Extension):
+#    def extendMarkdown(self, md):
+#        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(~~)(.*?)(~~)',
+#                                                                                    'del'),
+#                                  'del', 105)
+#
+#class InsExtension(markdown.extensions.Extension):
+#    def extendMarkdown(self, md):
+#        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(\^\^)(.*?)(\^\^)',
+#                                                                                    'ins'),
+#                                  'ins', 106)
 
-class DelExtension(markdown.extensions.Extension):
-    def extendMarkdown(self, md):
-        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(~~)(.*?)(~~)',
-                                                                                    'del'),
-                                  'del', 105)
-
-class InsExtension(markdown.extensions.Extension):
-    def extendMarkdown(self, md):
-        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(\^\^)(.*?)(\^\^)',
-                                                                                    'ins'),
-                                  'ins', 106)
-
-md = markdown.Markdown(extensions=[DelExtension(), InsExtension()])
+md = markdown.Markdown(extensions=[
+  #'sane_lists',          # included in markdown package
+  'mdx_truly_sane_lists', # pip install mdx_truly_sane_lists
+  #'prependnewline',      # pip install prependnewline
+  'mdx_breakless_lists',  # pip install mdx-breakless-lists
+  'citeurl',              # pip install citeurl
+  #'pymdownx.escapeall',  # what do I have to install for this to work?
+  'markdown_del_ins',     # pip install markdown-del-ins
+  #DelExtension(), InsExtension()
+])
 
 class MultiQueue:
     r'''Cross coroutine queue that feeds several clients.  Each "push" is sent to all clients (as they
@@ -207,6 +216,8 @@ async def viewer(request: web.Request) -> web.StreamResponse:
 print("__file__", __file__)
 Source_dir = os.path.dirname(__file__)
 print("Source_dir", Source_dir)
+
+#print("md.convert('hello ~~old~~ and ++new++ stuff')", md.convert('hello ~~old~~ and ++new++ stuff'))
 
 app = web.Application()
 app.add_routes([
