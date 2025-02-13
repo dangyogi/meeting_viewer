@@ -17,22 +17,118 @@ def get_current(err_no_current=True):
     '''
     cur = meta('current')
     if cur.exists():
-        return Path(cur.read_text().rstrip('\n'))
+        return Path(cur.read_text().split()[0])
     if err_no_current:
         print("ERROR: no current file", file=sys.stderr)
         sys.exit(1)
     return None
 
 def as_list(filename):
+    r'''Returns the first word on each line of filename as a list.
+    '''
     path = meta(filename)
     if not path.exists(): return []
     with path.open() as f:
-        return [line.rstrip('\n') for line in f]
+        ans = [line.split()[0] for line in f]
+        #print("as_list", filename, ans)
+        return ans
 
 def in_file(name, filename):
-    r'''Accepts Path as name.
+    r'''True if name is subordinate_to any motion in filename.
+
+    Accepts Path as name.
     '''
-    return str(name) in as_list(filename)
+    return in_list(name, as_list(filename))
+
+def in_list(name, motions):
+    r'''True if name is subordinate_to any motion in motions.
+
+    Accepts Path as name.
+    '''
+    for motion in motions:
+        if subordinate_to(name, motion):
+            return True
+    return False
+
+def subordinate_to(a, b):
+    r'''True if motion a is subordinate to motion b.
+
+    For example, mot-1-1 and mot-1.1 are subordinate to mot, mot-1 and mot-1.2, but not mot-2.
+
+    >>> subordinate_to('mot-1-1', 'mot')
+    True
+    >>> subordinate_to('mot-1-1', 'mot.2')
+    True
+    >>> subordinate_to('mot-1-1', 'mot.2.3')
+    True
+    >>> subordinate_to('mot-1-1', 'mot-1')
+    True
+    >>> subordinate_to('mot-1-1', 'mot-1.2')
+    True
+    >>> subordinate_to('mot-1-1', 'mot-1-1')
+    True
+    >>> subordinate_to('mot-1-1', 'mot-2')
+    False
+    >>> subordinate_to('mot-1.1', 'mot')
+    True
+    >>> subordinate_to('mot-1.1', 'mot.2')
+    True
+    >>> subordinate_to('mot-1.1', 'mot.2.3')
+    True
+    >>> subordinate_to('mot-1.1', 'mot-1')
+    True
+    >>> subordinate_to('mot-1.1', 'mot-1.2')
+    True
+    >>> subordinate_to('mot-1.1', 'mot-1-1')
+    False
+    >>> subordinate_to('mot-1.1', 'mot-2')
+    False
+    >>> subordinate_to('mot-1', 'mot')
+    True
+    >>> subordinate_to('mot-1', 'mot.2')
+    True
+    >>> subordinate_to('mot-1', 'mot.2.3')
+    True
+    >>> subordinate_to('mot-1', 'mot-1')
+    True
+    >>> subordinate_to('mot-1', 'mot-1.2')
+    True
+    >>> subordinate_to('mot-1', 'mot-1-1')
+    False
+    >>> subordinate_to('mot-1', 'mot-2')
+    False
+    >>> subordinate_to('mot.1', 'mot')
+    True
+    >>> subordinate_to('mot.1.2', 'mot')
+    True
+    >>> subordinate_to('mot.1', 'mot.2')
+    True
+    >>> subordinate_to('mot.1.2', 'mot.2')
+    True
+    >>> subordinate_to('mot.1', 'mot.2.3')
+    True
+    >>> subordinate_to('mot.1.2', 'mot.2.3')
+    True
+    >>> subordinate_to('mot.1', 'mot-1')
+    False
+    >>> subordinate_to('mot.1.1', 'mot-1')
+    False
+    >>> subordinate_to('mot.1', 'mot-1.2')
+    False
+    >>> subordinate_to('mot.1', 'mot-1-1')
+    False
+    >>> subordinate_to('mot.1', 'mot-2')
+    False
+    >>> subordinate_to('foo', 'foobar')
+    False
+    >>> subordinate_to('foobar', 'foo')
+    False
+
+    Accepts Path for a or b.
+    '''
+    a = str(a).split('.')[0]  # strip .X
+    b = str(b).split('.')[0]  # strip .X
+    return a == b or a.startswith(b + '-')
 
 def check_open(motion):
     if in_file(motion, 'failed'):
@@ -42,11 +138,14 @@ def check_open(motion):
         print(f"{motion} already passed", file=sys.stderr)
         sys.exit(1)
 
-def append(motion, filename):
+def append(filename, motion, *reason):
     r'''Accepts Path as motion.
     '''
     with meta(filename).open('at') as f:
-        print(str(motion), file=f)
+        if reason:
+            print(str(motion), ' '.join(reason), file=f)
+        else:
+            print(str(motion), file=f)
 
 def read(filename):
     with Path(filename).open() as f:
@@ -55,7 +154,13 @@ def read(filename):
 number_re = re.compile(r'([-.][0-9]+)')
 
 def expand(name):
-    r'''Accepts Path as name.
+    r'''Expands motion name into its parts for sorting.
+
+    'motion-1.2' expands to ['motion', 1, '-', 2, '.'] so that numbers sort properly,
+    also so that -2 and .2 sort together, for example to get motion-2, motion.2 and motion-3;
+    rather than motion-2, motion-3, motion.2.
+
+    Accepts Path as name.
     '''
     def parts():
         for part in number_re.split(str(name)):
@@ -68,19 +173,29 @@ def expand(name):
     return tuple(parts())
 
 def motion_history(motion, failed=()):
-    return [Path(motion)] + sorted(filterfalse(lambda path: str(path) in failed, 
+    r'''Shows the history of motion in chronological order.
+
+    Prunes out failed motions.
+    '''
+    return [Path(motion)] + sorted(filterfalse(lambda path: in_list(path, failed),
                                                Motiondir.glob(motion + '[-.]*')),
                                    key=expand)
 
 def cur_agenda():
     failed = frozenset(as_list('failed'))
     passed = frozenset(as_list('passed'))
-    for line in meta('agenda').open():
-        motion = line.rstrip('\n')
-        print("looking at motion", motion)
-        if motion not in failed and motion not in passed:
-            history = motion_history(motion, failed)
-            yield history[-1]
+    with meta('agenda').open() as f:
+        for line in f:
+            motion = line.split()[0]
+            #print("cur_agenda looking at motion", motion)
+            if not in_list(motion, failed) and not in_list(motion, passed):
+                history = motion_history(motion, failed)
+                print("cur_agenda", motion, "got history", history)
+                yield history[-1]
+
+def agenda():
+    for motion in cur_agenda():
+        print(motion)
 
 def current(motion=None):
     r'''Displays or sets current motion.
@@ -129,7 +244,7 @@ def next(_no_edit, _dry_run):
         if _dry_run:
             return
         start(_no_edit, motion)
-    print("agenda done")
+    print("The agenda is done!")
 
 tail_re = re.compile(r'-[0-9]+(\.[0-9]+)*$')
 
@@ -170,9 +285,9 @@ def pass_block(text):
     print("ans", ans)
     return ans
 
-def pass_(_no_edit, _dry_run):
+def pass_(_no_edit, _dry_run, reason_):
     motion = get_current()
-    print("pass", str(motion))
+    print("pass", str(motion), reason_)
     check_open(motion)
     hyphen_count = str(motion).count('-')
     if hyphen_count:
@@ -183,6 +298,8 @@ def pass_(_no_edit, _dry_run):
         if dot.exists():
             print(f"{str(motion)} already passed", file=sys.stderr)
             sys.exit(1)
+        if _dry_run:
+            dot = Path('tmp.' + str(dot))
         if hyphen_count == 1:
             secs = sections(motion)
             print("pass: primary amendment")
@@ -202,31 +319,41 @@ def pass_(_no_edit, _dry_run):
                 f.write(pass_block(secs[2]))
         print("pass created", str(dot))
         if not _dry_run:
-            #append(motion, 'passed')
+            #append('passed', motion, *reason_)
             start(_no_edit, dot)
     else:
-        print("pass: got motion")
-        append(motion, 'passed')
-        #FIX: next(_no_edit)
+        print("pass: got motion, appending", str(motion), "to 'passed'")
+        if not _dry_run:
+            append('passed', motion, *reason_)
+            #FIX: next(_no_edit)
 
-def fail(_no_edit):
+def fail(_no_edit, _dry_run, reason_):
     motion = get_current()
-    print("fail", str(motion))
+    print("fail", str(motion), reason_)
     check_open(motion)
-    append(motion, 'failed')
+    if _dry_run:
+        print("fail appending", str(motion), "to 'failed'")
+    else:
+        append('failed', motion, *reason_)
     last_hyphen = str(motion).rfind('-')
     if last_hyphen >= 0:
-        print("fail: got amendment")
-        start(_no_edit, str(motion)[: last_hyphen])
+        parent = str(motion)[: last_hyphen]
+        print("fail: got amendment, starting", parent)
+        if not _dry_run:
+            start(_no_edit, parent)
     else:
         print("fail: got motion")
         #FIX: next(_no_edit)
 
 def amend(_no_edit, _dry_run):
-    motion = str(get_current())
+    current_motion = get_current()
+    motion = str(current_motion)
+
+    # strip .X
     dot = motion.find('.')
     if dot >= 0:
-        motion = motion[:dot]  # strip .X
+        motion = motion[:dot]
+
     print("amend", motion)
     check_open(motion)
     hyphen_count = motion.count('-')
@@ -237,20 +364,15 @@ def amend(_no_edit, _dry_run):
         kind = 'amendment'
     else:
         kind = 'motion'
-    history = motion_history(motion)
-    last_motion = history[-1]
-    dot = dot_tail(last_motion)
-    if dot is not None:
-        dot = dot[1:]
-        dot2 = dot.find('.')
-        if dot2 >= 0:
-            dot = dot[: dot2]  # strip second dot
-        next_num = int(dot) + 1
-    else:
-        next_num = 1
+    next_num = max((int(str(name)[len(motion) + 1:].split('.')[0].split('-')[0])
+                      for name in Motiondir.glob(motion + '[-.]*')),
+                   default=0) + 1
     new_file = Path(motion + f"-{next_num}")
+    print("amend, new_file", str(new_file))
+    if _dry_run:
+        new_file = Path('tmp.' + str(new_file))
     with new_file.open('wt') as f:
-        with last_motion.open() as old_f:
+        with current_motion.open() as old_f:
             f.write(old_f.read())
         print("-------------------", file=f)
         print(f"amend the {kind} by ", file=f)
@@ -274,6 +396,8 @@ def commands():
                 ans.append(f" [{arg[1:3]}|{arg}]")
             elif kind == 'required':
                 ans.append(' ' + arg)
+            elif kind == 'list':
+                ans.append(' ' + arg + '...')
             else:
                 ans.append(f" [{arg}]")
         return ''.join(ans)
@@ -287,6 +411,7 @@ def commands():
 
 Commands = {
     "current": current,
+    "agenda": agenda,
     "passed": passed,
     "failed": failed,
     "start": start,
@@ -301,7 +426,7 @@ Commands = {
 def getargs(fn):
     r'''Yields arg, kind.
 
-    Where kind is 'option', 'required', or a default value
+    Where kind is 'option', 'required', 'list' or a default value
 
     If arg starts with '_', all '_' have been replaced with '-', leaving the initial '-'.
     '''
@@ -313,10 +438,13 @@ def getargs(fn):
     for arg in fn_args[: num_no_defaults]:
         if arg[0] == '_':
             yield '-' + arg.replace('_', '-'), 'option'
+        elif arg[-1] == '_':
+            yield arg, 'list'
         else:
             yield arg, 'required'
     for arg, default in zip(fn_args[num_no_defaults:], fn_defaults):
         yield arg, default
+
 
 if __name__ == "__main__":
     import argparse
@@ -338,6 +466,8 @@ if __name__ == "__main__":
             arg_translate[arg[2:]] = arg[1:]
         elif kind == 'required':
             parser.add_argument(arg)
+        elif kind == 'list':
+            parser.add_argument(arg, nargs='*')
         else:
             parser.add_argument(arg, nargs='?', default=kind)
 

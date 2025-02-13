@@ -3,3 +3,8 @@
 body {
     font-size: 50px;
 }
+
+ol {
+    margin-block-start: 0;
+    padding-left: 1em;
+}

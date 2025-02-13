@@ -10,32 +10,45 @@ from aiohttp import web
 import aionotify
 from aiohttp_sse import sse_response
 import markdown
+from markdown.inlinepatterns import SimpleTextInlineProcessor
+from markdown.extensions import Extension
 
 
-## Markdown extensions for ~~deleted text~~ and ^^inserted text^^, these translate to <del> and <ins>
-## html tags, respectively.
+#class SaveUnderline(SimpleTextInlineProcessor):
+#    def getCompiledRegExp(self):
+#        print("SaveUnderline.getCompiledRegExp")
+#        #raise AssertionError
+#        return super().getCompiledRegExp()
 #
-#class DelExtension(markdown.extensions.Extension):
-#    def extendMarkdown(self, md):
-#        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(~~)(.*?)(~~)',
-#                                                                                    'del'),
-#                                  'del', 105)
-#
-#class InsExtension(markdown.extensions.Extension):
-#    def extendMarkdown(self, md):
-#        md.inlinePatterns.register(markdown.inlinepatterns.SimpleTagInlineProcessor(r'(\^\^)(.*?)(\^\^)',
-#                                                                                    'ins'),
-#                                  'ins', 106)
+#    def handleMatch(self, m, data):
+#        print("SaveUnderline.handleMatch", m, data)
+#        return super().handleMatch(m, data)
+
+class UnderlineExtension(Extension):
+    def extendMarkdown(self, md):
+        md.inlinePatterns.register(SimpleTextInlineProcessor(NOT_STRONG_RE, md),
+                                   #SaveUnderline(NOT_STRONG_RE, md),
+                                   'underline', 75)
+
+NOT_STRONG_RE = r'(_{4,})'
+#NOT_STRONG_RE = r'((\*{4,}|_{4,}))'
+#NOT_STRONG_RE = r'((\*{4,}|_{4,}))'
+#NOT_STRONG_RE = r'((^|(?<=\s))(\*{4,}|_{4,})(?=\s|$))'
+#NOT_STRONG_RE = r'((^|(?<=\s))(\*{1,}|_{1,})(?=\s|$))'
 
 md = markdown.Markdown(extensions=[
+  # no list extension     # must indent nested lists more than text
   #'sane_lists',          # included in markdown package
-  'mdx_truly_sane_lists', # pip install mdx_truly_sane_lists
-  #'prependnewline',      # pip install prependnewline
-  'mdx_breakless_lists',  # pip install mdx-breakless-lists
+                         # must indent nested lists more than text, no blank lines needed
+  'mdx_truly_sane_lists', # pip install mdx_truly_sane_lists, indent nested lists less than text
+
+  #'prependnewline',      # pip install prependnewline, indent nested lists more than text
+  #'mdx_breakless_lists',  # pip install mdx-breakless-lists, indent nested lists more than text
+
   'citeurl',              # pip install citeurl
   #'pymdownx.escapeall',  # what do I have to install for this to work?
-  'markdown_del_ins',     # pip install markdown-del-ins
-  #DelExtension(), InsExtension()
+  'markdown_del_ins',     # pip install markdown-del-ins ~~del~~ ++ins++
+  UnderlineExtension(),   # override _italics_ and __bold__ to leave 4 or more _ unmolested.
 ])
 
 class MultiQueue:
