@@ -25,11 +25,15 @@ def get_current(err_no_current=True):
 
 def as_list(filename):
     r'''Returns the first word on each line of filename as a list.
+
+    Lines starting with '#' are ignored.
     '''
     path = meta(filename)
     if not path.exists(): return []
     with path.open() as f:
-        ans = [line.split()[0] for line in f]
+        ans = [line.split()[0]
+               for line in f
+               if line[0] != '#']
         #print("as_list", filename, ans)
         return ans
 
@@ -184,14 +188,12 @@ def motion_history(motion, failed=()):
 def cur_agenda():
     failed = frozenset(as_list('failed'))
     passed = frozenset(as_list('passed'))
-    with meta('agenda').open() as f:
-        for line in f:
-            motion = line.split()[0]
-            #print("cur_agenda looking at motion", motion)
-            if not in_list(motion, failed) and not in_list(motion, passed):
-                history = motion_history(motion, failed)
-                print("cur_agenda", motion, "got history", history)
-                yield history[-1]
+    for motion in as_list('agenda'):
+        #print("cur_agenda looking at motion", motion)
+        if not in_list(motion, failed) and not in_list(motion, passed):
+            history = motion_history(motion, failed)
+            #print("cur_agenda", motion, "got history", history)
+            yield history[-1]
 
 def agenda():
     for motion in cur_agenda():
