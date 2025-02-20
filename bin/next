@@ -235,7 +235,9 @@ def start(_no_edit, motion=None):
     else:
         motion_path = Path(motion)
         meta('current').write_text(str(motion).rstrip('\n') + '\n')
-    motion_path.touch()
+    #motion_path.touch()
+    with motion_path.open('at'):
+        pass
     if not _no_edit:
         editor = Path(os.environ['EDITOR'])
         os.execl(editor, editor.name, motion_path)

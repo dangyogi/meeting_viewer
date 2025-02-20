@@ -128,15 +128,18 @@ async def watcher(app):
     '''
     watcher = aionotify.Watcher()
     watcher.watch(alias='watch_dir', path=Watch_dir,
-                  flags=aionotify.Flags.CLOSE_WRITE ) # | aionotify.Flags.MODIFY)
+                  flags=aionotify.Flags.CLOSE_WRITE
+                    # | aionotify.Flags.MODIFY
+                 )
     await watcher.setup()
     print("watcher started")
     try:
         while True:
             event = await watcher.get_event()
-            if event.name[0] != '.' and not event.name.isdigit():
+            if event.name[0] != '.' and not event.name.isdigit() and event.name != 'metadata':
                 if not app['multi_queue'].empty():
-                    print("watcher got", event.name, "with registered clients")
+                    print("watcher got", event.name, "with registered clients, flags",
+                          aionotify.Flags.parse(event.flags))
                     new_filename = event.name
                     new_contents = convert(new_filename)
                     print("watcher", event.name, "pushing contents")
