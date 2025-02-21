@@ -1,5 +1,19 @@
 # activate
 
-. ../meeting.venv/bin/activate
+starting_dir="$(pwd)"
 
+# cd .. up to meeting_viewer
+#echo starting dir $(basename "$(pwd)")
+while [ $(basename "$(pwd)") != meeting_viewer ]
+do
+  #echo dir $(basename "$(pwd)")
+  cd ..
+done
+
+#echo final dir $(basename "$(pwd)")
+. ../meeting.venv/bin/activate
 PATH=$PATH:$(pwd)/bin
+
+cd "$starting_dir"
+#echo ending dir $(basename "$(pwd)")
+#echo ending PATH $PATH

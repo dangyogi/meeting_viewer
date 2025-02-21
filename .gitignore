@@ -2,9 +2,10 @@
 
 .history
 
-# pyenv
+# python
 .python-version
 .pyhist
+__pycache__
 
 # vim files
 .*.swp
