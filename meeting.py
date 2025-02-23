@@ -1,5 +1,6 @@
 # meeting.py
 
+import sys
 import asyncio
 import os.path
 import tempfile
@@ -12,23 +13,60 @@ from aiohttp_sse import sse_response
 
 # Logging:
 
-prefix = 'monitor-'
-Log_fileno, Log_filename = tempfile.mkstemp(prefix=prefix, suffix=".txt", text=True)
+class SplitOutput:
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
 
-# Remove old log files
-tmpdir = Path(os.path.dirname(Log_filename))
-for file in tmpdir.glob(prefix + '*'):
-    if str(file) != Log_filename:
-        #print("log glob got", repr(file))
-        file.unlink()
+    def close(self):
+        self.a.close()
+        self.b.close()
 
-Log_file = open(Log_fileno, 'w+t', buffering=1)  # line buffering
+    def flush(self):
+        self.a.flush()
+        self.b.flush()
+
+    def seekable(self):
+        return False
+
+    def readable(self):
+        return False
+
+    def writable(self):
+        return True
+
+    def write(self, data):
+        self.a.write(data)
+        self.b.write(data)
+
+
+def open_log(quiet):
+    global Log_filename, Log_file
+    prefix = 'monitor-'
+    log_fileno, Log_filename = tempfile.mkstemp(prefix=prefix, suffix=".txt", text=True)
+
+    # Remove old log files
+    tmpdir = Path(os.path.dirname(Log_filename))
+    for file in tmpdir.glob(prefix + '*'):
+        if str(file) != Log_filename:
+            #print("log glob got", repr(file))
+            file.unlink()
+
+    Log_file = open(log_fileno, 'w+t', buffering=1)  # line buffering
+
+    if quiet:
+        sys.stderr = Log_file
+        sys.stdout = Log_file
+    else:
+        split_output = SplitOutput(sys.stdout, Log_file)
+        sys.stderr = split_output
+        sys.stdout = split_output
+
+    log("Log_filename", repr(Log_filename))
 
 def log(*args):
     print(*args)
-    print(*args, file=Log_file)
-
-log("Log_filename", repr(Log_filename))
+    #print(*args, file=Log_file)
 
 
 # Web pages:
@@ -151,13 +189,16 @@ async def get_log(request):
 
 # Get the show on the road!
 
+parser = argparse.ArgumentParser(description="meeting monitor")
+parser.add_argument('--quiet', '-q', default=False, action='store_true')
+parser.add_argument('auth')
+args = parser.parse_args()
+
+open_log(args.quiet)
+
 log("__file__", __file__)
 Source_dir = os.path.dirname(__file__)
 log("Source_dir", Source_dir)
-
-parser = argparse.ArgumentParser(description="meeting monitor")
-parser.add_argument('auth')
-args = parser.parse_args()
 
 app = web.Application()
 app.add_routes([
