@@ -12,7 +12,10 @@
    </body>
 </html>
 <script>
-  var eventSource = new EventSource("/viewer");
+  const queryString = window.location.search;
+  const url = "/viewer" + queryString;
+  console.log(url);
+  var eventSource = new EventSource(url);
   eventSource.addEventListener("message", event => {
     document.getElementById("content").innerHTML = event.data;
   });

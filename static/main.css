@@ -53,3 +53,14 @@ ol {
     margin-inline-start: 0.4em;
     padding-inline-start: 0.95em;
 }
+
+label {
+    #vertical-align: middle;
+    padding-right: 0.3em;
+}
+
+input {
+    font-family: sans-serif;
+    #font-family: serif;
+    font-size: inherit;
+}
